@@ -16,6 +16,7 @@ export default function App() {
   const [tipo, setTipo] = useState('Retirada')
   const [endereco, setEndereco] = useState('')
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todos')
+  const [enviando, setEnviando] = useState(false)
 
   // Adicionar produto
   const adicionar = (produto) => {
@@ -42,15 +43,8 @@ export default function App() {
 
   // Finalizar pedido
   const finalizarPedido = async () => {
-    if (carrinho.length === 0) {
-      alert('Seu carrinho está vazio')
-      return
-    }
-
-    if (tipo === 'Entrega' && endereco.trim() === '') {
-      alert('Digite o endereço para entrega')
-      return
-    }
+    if (carrinho.length === 0) return alert('Seu carrinho está vazio')
+    if (tipo === 'Entrega' && endereco.trim() === '') return alert('Digite o endereço para entrega')
 
     const pedido = {
       itens: carrinho.map(i => `${i.qtd}x ${i.nome}`).join('\n'),
@@ -60,36 +54,33 @@ export default function App() {
       endereco: tipo === 'Entrega' ? endereco : ''
     }
 
-    // Envia pedido para FastAPI
+    setEnviando(true)
+
     try {
       const response = await fetch('https://bot-whatsapp-fastapi.onrender.com/pedido', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pedido)
       })
-
-      if (!response.ok) {
-        alert('Erro ao enviar pedido. Tente novamente.')
-        return
-      }
+      if (!response.ok) throw new Error('Erro no envio do pedido')
     } catch (err) {
       console.error('Erro ao enviar pedido:', err)
-      alert('Erro ao enviar pedido. Tente novamente.')
-      return
+      setEnviando(false)
+      return alert('Erro ao enviar pedido. Tente novamente.')
     }
 
     // Redireciona para WhatsApp
-    setTimeout(() => {
-      const mensagemWhats = encodeURIComponent(`
+    const mensagemWhats = encodeURIComponent(`
 🧾 *NOVO PEDIDO*
 ${pedido.itens}
 💰 Total: R$ ${pedido.total},00
 💳 Pagamento: ${pedido.pagamento}
 🚚 Tipo: ${pedido.tipo}
 ${pedido.tipo === 'Entrega' ? `📍 Endereço: ${pedido.endereco}` : ''}
-      `)
+    `)
+    setTimeout(() => {
       window.location.href = `https://wa.me/5516993883427?text=${mensagemWhats}`
-    }, 500) // atraso de 500ms garante envio ao backend
+    }, 500)
   }
 
   return (
@@ -101,7 +92,7 @@ ${pedido.tipo === 'Entrega' ? `📍 Endereço: ${pedido.endereco}` : ''}
         {CATEGORIAS.map(c => (
           <button
             key={c}
-            style={{ ...styles.categoria, background: categoriaAtiva === c ? '#25D366' : '#eee' }}
+            style={{ ...styles.categoria, background: categoriaAtiva === c ? '#25D366' : '#eee', color: categoriaAtiva === c ? '#fff' : '#000' }}
             onClick={() => setCategoriaAtiva(c)}
           >
             {c}
@@ -110,38 +101,34 @@ ${pedido.tipo === 'Entrega' ? `📍 Endereço: ${pedido.endereco}` : ''}
       </div>
 
       {/* Lista de produtos */}
-      {PRODUTOS.filter(p => categoriaAtiva === 'Todos' || p.categoria === categoriaAtiva)
-        .map(p => (
-          <div key={p.id} style={styles.card}>
-            <img src={p.imagem} alt={p.nome} style={styles.img} />
-            <div style={{ flex: 1 }}>
-              <h3>{p.nome}</h3>
-              <p>R$ {p.preco},00</p>
+      <div style={styles.produtos}>
+        {PRODUTOS.filter(p => categoriaAtiva === 'Todos' || p.categoria === categoriaAtiva)
+          .map(p => (
+            <div key={p.id} style={styles.card}>
+              <img src={p.imagem} alt={p.nome} style={styles.img} />
+              <div style={{ flex: 1 }}>
+                <h3>{p.nome}</h3>
+                <p>R$ {p.preco},00</p>
+              </div>
+              <div style={styles.controls}>
+                <button onClick={() => remover(p)}>-</button>
+                <span>{carrinho.find(i => i.id === p.id)?.qtd || 0}</span>
+                <button onClick={() => adicionar(p)}>+</button>
+              </div>
             </div>
-            <div style={styles.controls}>
-              <button onClick={() => remover(p)}>-</button>
-              <span>{carrinho.find(i => i.id === p.id)?.qtd || 0}</span>
-              <button onClick={() => adicionar(p)}>+</button>
-            </div>
-          </div>
-        ))}
-
-      <hr />
-
-      {/* Resumo do pedido */}
-      <div style={styles.resumo}>
-        <h3>🧾 Resumo do pedido</h3>
-        {carrinho.length === 0 && <p>Nenhum item adicionado</p>}
-        {carrinho.map(i => (
-          <p key={i.id}>{i.nome} ({i.qtd}x) – R$ {i.preco * i.qtd},00</p>
-        ))}
-        <strong>Total: R$ {total},00</strong>
+          ))}
       </div>
 
-      <hr />
+      {/* Carrinho flutuante */}
+      <div style={styles.carrinho}>
+        <h3>🛒 Resumo do pedido</h3>
+        {carrinho.length === 0 ? <p>Nenhum item adicionado</p> :
+          carrinho.map(i => (
+            <p key={i.id}>{i.nome} ({i.qtd}x) – R$ {i.preco * i.qtd},00</p>
+          ))
+        }
+        <strong>Total: R$ {total},00</strong>
 
-      {/* Pagamento e entrega */}
-      <div style={styles.opcoes}>
         <h3>💳 Pagamento</h3>
         <select value={pagamento} onChange={e => setPagamento(e.target.value)}>
           <option>Pix</option>
@@ -164,50 +151,57 @@ ${pedido.tipo === 'Entrega' ? `📍 Endereço: ${pedido.endereco}` : ''}
           />
         )}
 
-        <button style={styles.finalizar} onClick={finalizarPedido}>
-          Finalizar pedido no WhatsApp
+        <button style={{ ...styles.finalizar, opacity: enviando ? 0.6 : 1 }} onClick={finalizarPedido} disabled={enviando}>
+          {enviando ? 'Enviando...' : 'Finalizar pedido'}
         </button>
       </div>
     </div>
   )
 }
 
-// Estilos inline premium
+// Estilos premium SaaS
 const styles = {
   container: {
-    maxWidth: 450,
-    margin: '30px auto',
+    maxWidth: 500,
+    margin: '20px auto',
     fontFamily: 'Arial, sans-serif',
     padding: 15,
     background: '#fff',
     borderRadius: 12,
-    boxShadow: '0 0 20px rgba(0,0,0,0.1)'
+    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+    position: 'relative'
   },
   categorias: {
     display: 'flex',
     gap: 10,
-    marginBottom: 15,
+    marginBottom: 20,
     flexWrap: 'wrap'
   },
   categoria: {
-    padding: '5px 12px',
-    borderRadius: 8,
+    padding: '6px 14px',
+    borderRadius: 10,
     border: 'none',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    fontWeight: 'bold'
+  },
+  produtos: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12
   },
   card: {
     border: '1px solid #ddd',
-    padding: 10,
     borderRadius: 12,
-    marginBottom: 10,
+    padding: 10,
     display: 'flex',
     alignItems: 'center',
-    gap: 10
+    gap: 12,
+    background: '#fafafa'
   },
   img: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
+    width: 70,
+    height: 70,
+    borderRadius: 10,
     objectFit: 'cover'
   },
   controls: {
@@ -215,13 +209,14 @@ const styles = {
     alignItems: 'center',
     gap: 10
   },
-  resumo: {
-    background: '#f9f9f9',
-    padding: 10,
-    borderRadius: 8
-  },
-  opcoes: {
-    marginTop: 15
+  carrinho: {
+    position: 'sticky',
+    bottom: 10,
+    background: '#fff',
+    padding: 15,
+    borderRadius: 12,
+    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+    marginTop: 20
   },
   input: {
     width: '100%',
@@ -232,15 +227,14 @@ const styles = {
   },
   finalizar: {
     width: '100%',
-    marginTop: 15,
+    marginTop: 12,
     padding: 15,
     background: '#25D366',
     color: '#fff',
     border: 'none',
-    borderRadius: 8,
+    borderRadius: 10,
     fontWeight: 'bold',
     fontSize: 16,
     cursor: 'pointer'
   }
 }
-// Forçando redeploy Vercel
