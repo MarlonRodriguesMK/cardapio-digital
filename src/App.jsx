@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-// Produtos e categorias
+// --- Produtos com categorias e imagens ---
 const PRODUTOS = [
   { id: 1, nome: 'X-Burger', preco: 15, categoria: 'Lanches', imagem: '/imgs/xb.png' },
   { id: 2, nome: 'X-Bacon', preco: 18, categoria: 'Lanches', imagem: '/imgs/xbacon.png' },
@@ -16,30 +16,23 @@ export default function App() {
   const [tipo, setTipo] = useState('Retirada')
   const [endereco, setEndereco] = useState('')
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todos')
-  const [enviando, setEnviando] = useState(false)
 
-  // Adicionar produto
+  // Adicionar ao carrinho
   const adicionar = (produto) => {
     const existe = carrinho.find(i => i.id === produto.id)
-    if (existe) {
-      setCarrinho(carrinho.map(i => i.id === produto.id ? { ...i, qtd: i.qtd + 1 } : i))
-    } else {
-      setCarrinho([...carrinho, { ...produto, qtd: 1 }])
-    }
+    if (existe) setCarrinho(carrinho.map(i => i.id === produto.id ? { ...i, qtd: i.qtd + 1 } : i))
+    else setCarrinho([...carrinho, { ...produto, qtd: 1 }])
   }
 
-  // Remover produto
+  // Remover do carrinho
   const remover = (produto) => {
     const existe = carrinho.find(i => i.id === produto.id)
     if (!existe) return
-    if (existe.qtd === 1) {
-      setCarrinho(carrinho.filter(i => i.id !== produto.id))
-    } else {
-      setCarrinho(carrinho.map(i => i.id === produto.id ? { ...i, qtd: i.qtd - 1 } : i))
-    }
+    if (existe.qtd === 1) setCarrinho(carrinho.filter(i => i.id !== produto.id))
+    else setCarrinho(carrinho.map(i => i.id === produto.id ? { ...i, qtd: i.qtd - 1 } : i))
   }
 
-  const total = carrinho.reduce((soma, item) => soma + item.preco * item.qtd, 0)
+  const total = carrinho.reduce((soma, i) => soma + i.preco * i.qtd, 0)
 
   // Finalizar pedido
   const finalizarPedido = async () => {
@@ -54,23 +47,20 @@ export default function App() {
       endereco: tipo === 'Entrega' ? endereco : ''
     }
 
-    setEnviando(true)
-
     try {
       const response = await fetch('https://bot-whatsapp-fastapi.onrender.com/pedido', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pedido)
       })
-      if (!response.ok) throw new Error('Erro no envio do pedido')
+      if (!response.ok) throw new Error('Erro ao enviar pedido')
     } catch (err) {
-      console.error('Erro ao enviar pedido:', err)
-      setEnviando(false)
+      console.error(err)
       return alert('Erro ao enviar pedido. Tente novamente.')
     }
 
-    // Redireciona para WhatsApp
-    const mensagemWhats = encodeURIComponent(`
+    // Redireciona para WhatsApp do restaurante
+    const msg = encodeURIComponent(`
 🧾 *NOVO PEDIDO*
 ${pedido.itens}
 💰 Total: R$ ${pedido.total},00
@@ -78,57 +68,51 @@ ${pedido.itens}
 🚚 Tipo: ${pedido.tipo}
 ${pedido.tipo === 'Entrega' ? `📍 Endereço: ${pedido.endereco}` : ''}
     `)
-    setTimeout(() => {
-      window.location.href = `https://wa.me/5516993883427?text=${mensagemWhats}`
-    }, 500)
+    window.location.href = `https://wa.me/5516993883427?text=${msg}`
   }
 
   return (
     <div style={styles.container}>
       <h1>🍔 Cardápio Digital Premium</h1>
 
-      {/* Menu de categorias */}
+      {/* Categorias */}
       <div style={styles.categorias}>
         {CATEGORIAS.map(c => (
           <button
             key={c}
-            style={{ ...styles.categoria, background: categoriaAtiva === c ? '#25D366' : '#eee', color: categoriaAtiva === c ? '#fff' : '#000' }}
+            style={{ ...styles.categoria, background: categoriaAtiva === c ? '#25D366' : '#eee' }}
             onClick={() => setCategoriaAtiva(c)}
-          >
-            {c}
-          </button>
+          >{c}</button>
         ))}
       </div>
 
-      {/* Lista de produtos */}
-      <div style={styles.produtos}>
-        {PRODUTOS.filter(p => categoriaAtiva === 'Todos' || p.categoria === categoriaAtiva)
-          .map(p => (
-            <div key={p.id} style={styles.card}>
-              <img src={p.imagem} alt={p.nome} style={styles.img} />
-              <div style={{ flex: 1 }}>
-                <h3>{p.nome}</h3>
-                <p>R$ {p.preco},00</p>
-              </div>
-              <div style={styles.controls}>
-                <button onClick={() => remover(p)}>-</button>
-                <span>{carrinho.find(i => i.id === p.id)?.qtd || 0}</span>
-                <button onClick={() => adicionar(p)}>+</button>
-              </div>
-            </div>
-          ))}
+      {/* Produtos */}
+      {PRODUTOS.filter(p => categoriaAtiva === 'Todos' || p.categoria === categoriaAtiva).map(p => (
+        <div key={p.id} style={styles.card}>
+          <img src={p.imagem} alt={p.nome} style={styles.img} />
+          <div style={{ flex: 1 }}>
+            <h3>{p.nome}</h3>
+            <p>R$ {p.preco},00</p>
+          </div>
+          <div style={styles.controls}>
+            <button onClick={() => remover(p)}>-</button>
+            <span>{carrinho.find(i => i.id === p.id)?.qtd || 0}</span>
+            <button onClick={() => adicionar(p)}>+</button>
+          </div>
+        </div>
+      ))}
+
+      {/* Resumo do pedido */}
+      <div style={styles.resumo}>
+        <h3>🧾 Resumo do pedido</h3>
+        {carrinho.length === 0 ? <p>Nenhum item adicionado</p> : carrinho.map(i => (
+          <p key={i.id}>{i.nome} ({i.qtd}x) – R$ {i.preco * i.qtd},00</p>
+        ))}
+        <strong>Total: R$ {total},00</strong>
       </div>
 
-      {/* Carrinho flutuante */}
-      <div style={styles.carrinho}>
-        <h3>🛒 Resumo do pedido</h3>
-        {carrinho.length === 0 ? <p>Nenhum item adicionado</p> :
-          carrinho.map(i => (
-            <p key={i.id}>{i.nome} ({i.qtd}x) – R$ {i.preco * i.qtd},00</p>
-          ))
-        }
-        <strong>Total: R$ {total},00</strong>
-
+      {/* Pagamento e entrega */}
+      <div style={styles.opcoes}>
         <h3>💳 Pagamento</h3>
         <select value={pagamento} onChange={e => setPagamento(e.target.value)}>
           <option>Pix</option>
@@ -151,90 +135,24 @@ ${pedido.tipo === 'Entrega' ? `📍 Endereço: ${pedido.endereco}` : ''}
           />
         )}
 
-        <button style={{ ...styles.finalizar, opacity: enviando ? 0.6 : 1 }} onClick={finalizarPedido} disabled={enviando}>
-          {enviando ? 'Enviando...' : 'Finalizar pedido'}
+        <button style={styles.finalizar} onClick={finalizarPedido}>
+          Finalizar pedido no WhatsApp
         </button>
       </div>
     </div>
   )
 }
 
-// Estilos premium SaaS
+// --- Estilos Premium ---
 const styles = {
-  container: {
-    maxWidth: 500,
-    margin: '20px auto',
-    fontFamily: 'Arial, sans-serif',
-    padding: 15,
-    background: '#fff',
-    borderRadius: 12,
-    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-    position: 'relative'
-  },
-  categorias: {
-    display: 'flex',
-    gap: 10,
-    marginBottom: 20,
-    flexWrap: 'wrap'
-  },
-  categoria: {
-    padding: '6px 14px',
-    borderRadius: 10,
-    border: 'none',
-    cursor: 'pointer',
-    fontWeight: 'bold'
-  },
-  produtos: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12
-  },
-  card: {
-    border: '1px solid #ddd',
-    borderRadius: 12,
-    padding: 10,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    background: '#fafafa'
-  },
-  img: {
-    width: 70,
-    height: 70,
-    borderRadius: 10,
-    objectFit: 'cover'
-  },
-  controls: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10
-  },
-  carrinho: {
-    position: 'sticky',
-    bottom: 10,
-    background: '#fff',
-    padding: 15,
-    borderRadius: 12,
-    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-    marginTop: 20
-  },
-  input: {
-    width: '100%',
-    padding: 8,
-    marginTop: 5,
-    borderRadius: 6,
-    border: '1px solid #ccc'
-  },
-  finalizar: {
-    width: '100%',
-    marginTop: 12,
-    padding: 15,
-    background: '#25D366',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 10,
-    fontWeight: 'bold',
-    fontSize: 16,
-    cursor: 'pointer'
-  }
+  container: { maxWidth: 450, margin: '30px auto', fontFamily: 'Arial, sans-serif', padding: 15, background: '#fff', borderRadius: 12, boxShadow: '0 0 20px rgba(0,0,0,0.1)' },
+  categorias: { display: 'flex', gap: 10, marginBottom: 15, flexWrap: 'wrap' },
+  categoria: { padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer' },
+  card: { border: '1px solid #ddd', padding: 10, borderRadius: 12, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 },
+  img: { width: 60, height: 60, borderRadius: 8, objectFit: 'cover' },
+  controls: { display: 'flex', alignItems: 'center', gap: 10 },
+  resumo: { background: '#f9f9f9', padding: 10, borderRadius: 8 },
+  opcoes: { marginTop: 15 },
+  input: { width: '100%', padding: 8, marginTop: 5, borderRadius: 6, border: '1px solid #ccc' },
+  finalizar: { width: '100%', marginTop: 15, padding: 15, background: '#25D366', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'bold', fontSize: 16, cursor: 'pointer' }
 }
