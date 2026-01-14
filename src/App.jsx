@@ -17,6 +17,7 @@ export default function App() {
   const [endereco, setEndereco] = useState('')
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todos')
 
+  // Adicionar produto
   const adicionar = (produto) => {
     const existe = carrinho.find(i => i.id === produto.id)
     if (existe) {
@@ -26,6 +27,7 @@ export default function App() {
     }
   }
 
+  // Remover produto
   const remover = (produto) => {
     const existe = carrinho.find(i => i.id === produto.id)
     if (!existe) return
@@ -38,6 +40,7 @@ export default function App() {
 
   const total = carrinho.reduce((soma, item) => soma + item.preco * item.qtd, 0)
 
+  // Finalizar pedido
   const finalizarPedido = async () => {
     if (carrinho.length === 0) {
       alert('Seu carrinho está vazio')
@@ -57,27 +60,36 @@ export default function App() {
       endereco: tipo === 'Entrega' ? endereco : ''
     }
 
-    // Envia o pedido para o backend FastAPI
+    // Envia pedido para FastAPI
     try {
-      await fetch('https://bot-whatsapp-fastapi.onrender.com/pedido', {
+      const response = await fetch('https://bot-whatsapp-fastapi.onrender.com/pedido', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pedido)
       })
+
+      if (!response.ok) {
+        alert('Erro ao enviar pedido. Tente novamente.')
+        return
+      }
     } catch (err) {
       console.error('Erro ao enviar pedido:', err)
+      alert('Erro ao enviar pedido. Tente novamente.')
+      return
     }
 
-    // Redireciona para WhatsApp do restaurante
-    const mensagemWhats = encodeURIComponent(`
+    // Redireciona para WhatsApp
+    setTimeout(() => {
+      const mensagemWhats = encodeURIComponent(`
 🧾 *NOVO PEDIDO*
 ${pedido.itens}
 💰 Total: R$ ${pedido.total},00
 💳 Pagamento: ${pedido.pagamento}
 🚚 Tipo: ${pedido.tipo}
 ${pedido.tipo === 'Entrega' ? `📍 Endereço: ${pedido.endereco}` : ''}
-    `)
-    window.location.href = `https://wa.me/5516993883427?text=${mensagemWhats}`
+      `)
+      window.location.href = `https://wa.me/5516993883427?text=${mensagemWhats}`
+    }, 500) // atraso de 500ms garante envio ao backend
   }
 
   return (
@@ -102,8 +114,10 @@ ${pedido.tipo === 'Entrega' ? `📍 Endereço: ${pedido.endereco}` : ''}
         .map(p => (
           <div key={p.id} style={styles.card}>
             <img src={p.imagem} alt={p.nome} style={styles.img} />
-            <h3>{p.nome}</h3>
-            <p>R$ {p.preco},00</p>
+            <div style={{ flex: 1 }}>
+              <h3>{p.nome}</h3>
+              <p>R$ {p.preco},00</p>
+            </div>
             <div style={styles.controls}>
               <button onClick={() => remover(p)}>-</button>
               <span>{carrinho.find(i => i.id === p.id)?.qtd || 0}</span>
@@ -197,7 +211,6 @@ const styles = {
     objectFit: 'cover'
   },
   controls: {
-    marginLeft: 'auto',
     display: 'flex',
     alignItems: 'center',
     gap: 10
